@@ -1,0 +1,57 @@
+---
+- name: Update Apt
+  apt: update_cache=yes
+
+- name: Generate locale
+  locale_gen: name="en_US.UTF-8" state=present
+
+- name: Update locale
+  command: /usr/sbin/update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+  notify: reconfigure dpkg
+
+- name: Check if anything needs autoremoving
+  shell: apt-get -y --dry-run autoremove | grep -q "0 to remove"
+  register: check_autoremove
+  ignore_errors: True
+  changed_when: False
+  always_run: True
+
+- name: Autoremove unused packages
+  command: apt-get -y autoremove
+  when: "check_autoremove.rc != 0"
+
+- name: Install useful software
+  apt: name="{{ item }}" state=present
+  with_items:
+  - htop
+  - screen
+  - unzip
+
+- name: Install system packages
+  apt: name="{{ item }}" state=present
+  with_items:
+  - software-properties-common
+  - python-pycurl
+  - build-essential
+  - curl
+  - git-core
+  - wget
+  - python-mysqldb
+
+- name: Add {{ remote_deploy_group }} group
+  group:
+    name: "{{ remote_deploy_group }}"
+
+- name: Add {remote_deploy_user} user
+  user:
+    name: "{{ remote_deploy_user }}"
+    home: "{{ remote_deploy_home }}"
+    group: "{{ remote_deploy_group }}"
+
+- name: Add ssh keys to root and deploy accounts
+  authorized_key:
+    user: "{{ item }}"
+    key: "{{ lookup('file', ssh_key_pub_path) }}"
+  with_items:
+  - root
+  - "{{ remote_deploy_user }}"

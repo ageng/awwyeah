@@ -1,0 +1,47 @@
+---
+- name: Add MariaDB MySQL apt-key
+  apt_key: url="http://keyserver.ubuntu.com/pks/lookup?op=get&fingerprint=on&search={{ keyserver_fingerprint }}"
+           state=present
+
+- name: Add MariaDB MySQL deb and deb-src
+  apt_repository: repo="{{ item }}" state=present
+  with_items:
+  - "deb http://{{ mirror }}/mariadb/repo/{{ version }}/ubuntu {{ mariadb_dist | default(ansible_distribution_release) }} main"
+  - "deb-src http://{{ mirror }}/mariadb/repo/{{ version }}/ubuntu {{ mariadb_dist | default(ansible_distribution_release) }} main"
+
+- name: Install MariaDB server
+  apt: name={{ item }}
+  with_items:
+    - mariadb-server-5.5
+    - mariadb-client-5.5
+
+- name: Disable default my.cnf
+  command: mv /etc/mysql/my.cnf /home/ubuntu
+
+- name: Create small my.cnf
+  template: src=my.cnf.j2
+            dest=/etc/mysql/my.cnf
+
+- name: Start MariaDB MySQL Server
+  service: name=mysql state=started enabled=true
+
+- name: Set root user password
+  mysql_user: name=root
+              password="{{ mysql_root_password }}"
+              check_implicit_admin=yes
+              login_user=root
+              login_password="{{ mysql_root_password }}"
+              state=present
+
+- name: Delete anonymous MySQL server user for current hostname
+  mysql_user: user=""
+              host="{{ ansible_hostname }}"
+              state=absent
+              login_user=root
+              login_password="{{ mysql_root_password }}"
+
+- name: Remove the test database
+  mysql_db: name=test
+            state=absent
+            login_user=root
+            login_password="{{ mysql_root_password }}"

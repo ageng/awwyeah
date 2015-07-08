@@ -1,0 +1,94 @@
+---
+- name: Create WordPress database
+  mysql_db: name="{{ wordpress_db_name }}"
+            state=present
+            login_user=root
+            login_password="{{ mysql_root_password }}"
+
+- name: Create WordPress DB user and grant permissions to WordPress DB
+  mysql_user: name="{{ wordpress_db_user }}"
+              password="{{ wordpress_db_user_pass }}"
+              priv="{{ wordpress_db_name }}.*:ALL"
+              state=present
+              login_user="root"
+              login_password="{{ mysql_root_password }}"
+
+- name: Is WordPress downloaded?
+  stat: path="{{ remote_wordpress_dir }}/index.php"
+  register: wp_dir
+
+- name: Create WordPress directory
+  file: path="{{ remote_wordpress_dir }}"
+        owner="{{ remote_deploy_user }}"
+        group="{{ remote_deploy_group }}"
+        mode=0755
+        state=directory
+  when: wp_dir.stat.isdir is not defined
+
+- name: Download WordPress
+  sudo: no
+  command: wp core download
+  args:
+      chdir: "{{ remote_wordpress_dir }}/"
+  remote_user: "{{ remote_deploy_user }}"
+  when: wp_dir.stat.isdir is not defined
+
+- name: Configure WordPress
+  sudo: no
+  command: wp core config
+           --path="{{ remote_wordpress_dir }}"
+           --dbname="{{ wordpress_db_name }}"
+           --dbuser="{{ wordpress_db_user }}"
+           --dbpass="{{ wordpress_db_user_pass }}"
+           --dbprefix="{{ wordpress_db_prefix }}"
+  remote_user: "{{ remote_deploy_user }}"
+  when: wp_dir.stat.isdir is not defined
+
+- name: Is WordPress installed?
+  sudo: no
+  command: wp core is-installed
+  args:
+    chdir: "{{ remote_wordpress_dir }}/"
+  register: wordpress_is_installed
+  ignore_errors: True
+  remote_user: "{{ remote_deploy_user }}"
+
+- name: Install WordPress tables
+  sudo: no
+  command: wp core install
+            --url="{{ wordpress_home_url }}"
+            --title="{{ wordpress_site_title }}"
+            --admin_user="{{ wordpress_admin_user }}"
+            --admin_password="{{ wordpress_admin_user_pass }}"
+            --admin_email="{{ wordpress_admin_email }}"
+  args:
+      chdir: "{{ remote_wordpress_dir }}/"
+  when: wordpress_is_installed|failed
+  remote_user: "{{ remote_deploy_user }}"
+
+- name: Change owner Wordpress directory
+  sudo: yes
+  command: "chown -R {{ remote_deploy_user }}:{{ remote_deploy_user }} {{ remote_wordpress_dir }}"
+
+- name: Install WordPress theme
+  sudo: yes
+  command: "sudo -u {{ remote_deploy_user }} wp theme install {{ wordpress_theme }} --activate"
+  args:
+    chdir: "{{ remote_wordpress_dir }}"
+  with_items: wordpress_theme
+  when: wp_advanced is defined
+
+- name: Install WordPress plugins
+  sudo: yes
+  command: "sudo -u {{ remote_deploy_user }} wp plugin install {{ item }}"
+  args:
+    chdir: "{{ remote_wordpress_dir }}"
+  with_items: wordpress_plugins
+  when: wp_advanced is defined
+
+- name: Change owner Wordpress directory
+  sudo: yes
+  command: "chown -R www-data:www-data {{ remote_wordpress_dir }}"
+
+- name : Restart Nginx Service
+  service: name=nginx state=restarted

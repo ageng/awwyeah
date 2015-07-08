@@ -1,0 +1,34 @@
+# role: common
+remote_deploy_user: deploy
+remote_deploy_group: deploy
+remote_deploy_home: /home/deploy
+ssh_key_pub_path: /home/ageng/.ssh/id_rsa.pub
+
+# role: wordpress-install
+remote_www_dir: "{{ remote_deploy_home}}/public_html"
+remote_wordpress_dir: "{{ remote_www_dir }}/wp"
+wordpress_db_name: dbname
+wordpress_db_user: dbuser
+wordpress_db_user_pass: dbpass
+wordpress_db_prefix: wp_
+wordpress_home_url: wpurl
+wordpress_site_title: Your Best References About Home Designing
+wordpress_admin_user: wpuser
+wordpress_admin_user_pass: wppass
+wordpress_admin_email: wpemail
+
+wordpress_plugins:
+- wordpress-seo
+- contact-form-7
+- wp-smushit
+- faster-image-insert
+- wordpress-importer
+- drafts-scheduler
+- seo-image
+- iq-block-country
+
+wordpress_theme: storefront
+
+# role: mariadb
+# You can put the password into roles/mariadb/vars/main.yml and add the file to .gitignore for security reasons
+mysql_root_password: sqlpass
